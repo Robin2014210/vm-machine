@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define OP_TYPE_R  0b0110011
 #define OP_TYPE_I  0b0010011
@@ -18,6 +20,18 @@
 #define TYPE_S_IMM_1_MASK 0x7F
 #define TYPE_S_IMM_2_MASK 0x1F
 #define TYPE_UJ_IMM_MASK 0xFFFFF
+
+#define CONSOLE_WRITE_CHAR 0x800
+#define CONSOLE_WRITE_SIGNED_INT 0x804
+#define CONSOLE_WRITE_UNSIGNED_INT 0x808
+#define HALT 0x80C
+#define CONSOLE_READ_CHAR 0x812
+#define CONSOLE_READ_SIGNED_INT 0x816
+#define DUMP_PC 0x820
+#define DUMP_REG_BANK 0x824
+#define DUMP_MEM_WORD 0x828
+#define MALLOC_MEM 0x830
+#define FREE_MEM 0x834
 
 unsigned int GET_OP(unsigned int val)
 {
@@ -65,7 +79,7 @@ unsigned int GET_TYPE_S_IMM_2(unsigned int val)
 }
 
 
-int analyze_seq(unsigned int val, unsigned int reg[], unsigned int Mem[], unsigned int *pc)
+int analyze_seq(unsigned int val, unsigned int reg[], unsigned char Mem[], unsigned int *pc)
 {
 	unsigned int op = GET_OP(val);
 	unsigned int func7, func3, rs1, rs2, rd, imm1, imm2, imm;
@@ -121,11 +135,12 @@ int analyze_seq(unsigned int val, unsigned int reg[], unsigned int Mem[], unsign
 			} else if(func3 == 0b111) { //andi
 				reg[rd] = reg[rs1] & imm1;
 			} else if(func3 == 0) { //lb Todo //consider mem as 4 byte unit
-				reg[rd] = (int)(Mem[reg[rs1] + imm1] & 0xFF);
+				reg[rd] = (int)Mem[reg[rs1] + imm1] ;
 			} else if(func3 == 1) { //lh Todo
-				reg[rd] = (int)(Mem[reg[rs1] + imm1] & 0xFFFF);
+				reg[rd] = (int)(Mem[reg[rs1] + imm1] +  (Mem[reg[rs1] + imm1 + 1] << 8));
 			} else if(func3 == 0b010) { //lw Todo
-				reg[rd] = (Mem[reg[rs1] + imm1]);
+				reg[rd] = (int)(Mem[reg[rs1] + imm1] +  (Mem[reg[rs1] + imm1 + 1] << 8));
+				reg[rd] += (int)((Mem[reg[rs1] + imm1 + 2] << 16) +  (Mem[reg[rs1] + imm1 + 3] << 24));
 			} else if(func3 == 0b100) { //lbu Todo
 				reg[rd] = Mem[reg[rs1] + imm1] & 0xFF;
 			} else if(func3 == 0b101) { //lhu Todo
@@ -155,6 +170,18 @@ int analyze_seq(unsigned int val, unsigned int reg[], unsigned int Mem[], unsign
 				Mem[reg[rs1] + imm] = reg[rs2] & 0xFFFF;
 			} else if(func3 == 0b010) { //sw
 				Mem[reg[rs1] + imm] = reg[rs2];
+			}
+			
+			//virtual routines
+			if(reg[rs2] == CONSOLE_WRITE_CHAR) {
+				printf("%c",reg[rs2]);
+			} else if(reg[rs2] == CONSOLE_WRITE_SIGNED_INT) {
+				printf("%d",reg[rs2]);
+			} else if(reg[rs2] == CONSOLE_WRITE_UNSIGNED_INT) {
+				printf("%u",reg[rs2]);
+			} else if(reg[rs2] == HALT) {
+				printf("CPU Halt Requested\n");
+				exit(1);
 			}
 			break;
 		case OP_TYPE_U:
@@ -214,9 +241,21 @@ int analyze_seq(unsigned int val, unsigned int reg[], unsigned int Mem[], unsign
 int main(){
 	unsigned int val = 0x00f686b3;
 	unsigned int reg[32] =  { 0 };
-	unsigned int Mem[256] = { 0 };
+	unsigned char Mem[1024] = { 0 };
 	unsigned int pc;
-	analyze_seq(val, reg, Mem, &pc);
-	
+	/* analyze_seq(val, reg, Mem, &pc); */
+	unsigned int test[10] = { 0 };
+	test[0] = 0x7ff00113;
+	test[1] = 0x00c000ef;
+	test[2] = 0x000017b7;
+	test[3] = 0x80078623;
+	test[4] = 0x000017b7;
+	test[5] = 0x04800713;
+	test[6] = 0x80e78023;
+	test[7] = 0x00000513;
+	test[8] = 0x00008067;
+	for(int i = 0; i < 9; i++) {
+		analyze_seq(test[i], reg, Mem, &pc);
+	}
     return 1;
 }
